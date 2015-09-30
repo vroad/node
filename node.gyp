@@ -12,7 +12,7 @@
     'node_use_openssl%': 'true',
     'node_shared_openssl%': 'false',
     'node_v8_options%': '',
-    'node_target_type%': 'executable',
+    'node_target_type%': 'shared_library',
     'library_files': [
       'src/node.js',
       'lib/_debug_agent.js',
@@ -197,6 +197,11 @@
         [ 'node_target_type!="executable"', {
           'sources!': [
             'src/node_main.cc',
+          ],
+        }],
+        [ 'node_target_type=="shared_library"', {
+          'sources': [
+            'src/node_android_jni.cc',
           ],
         }],
         [ 'node_release_urlbase!=""', {
