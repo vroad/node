@@ -12,7 +12,7 @@
     'node_use_openssl%': 'true',
     'node_shared_openssl%': 'false',
     'node_v8_options%': '',
-    'node_target_type%': 'executable',
+    'node_target_type%': 'shared_library',
     'node_core_target_name%': 'node',
     'library_files': [
       'src/node.js',
