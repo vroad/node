@@ -9,6 +9,8 @@
 #include "util-inl.h"
 #include "v8-debug.h"
 
+#include "node_buffer.h"
+
 namespace node {
 
 using v8::AccessType;
@@ -508,11 +510,23 @@ class ContextifyScript : public BaseObject {
       try_catch.ReThrow();
       return;
     }
+    Local<Value> codeCache = GetCodeCacheArg(args, 1);
+    ScriptCompiler::CompileOptions compileOptions = ScriptCompiler::kNoCompileOptions;
+    if (codeCache->IsObject())
+      compileOptions = ScriptCompiler::kConsumeCodeCache;
+    else
+      compileOptions = GetProduceCodeCacheArg(args, 1)->BooleanValue() ? ScriptCompiler::kProduceCodeCache : ScriptCompiler::kNoCompileOptions;
 
     ScriptOrigin origin(filename);
-    ScriptCompiler::Source source(code, origin);
+    ScriptCompiler::CachedData cachedData;
+    if (compileOptions == ScriptCompiler::kConsumeCodeCache)
+    {
+      cachedData.data = (uint8_t*)node::Buffer::Data(codeCache->ToObject());
+      cachedData.length = node::Buffer::Length(codeCache->ToObject());
+    }
+    ScriptCompiler::Source source(code, origin, compileOptions == ScriptCompiler::kConsumeCodeCache ? &cachedData : NULL);
     Local<UnboundScript> v8_script =
-        ScriptCompiler::CompileUnbound(env->isolate(), &source);
+      ScriptCompiler::CompileUnbound(env->isolate(), &source, compileOptions);
 
     if (v8_script.IsEmpty()) {
       if (display_errors) {
@@ -522,6 +536,15 @@ class ContextifyScript : public BaseObject {
       return;
     }
     contextify_script->script_.Reset(env->isolate(), v8_script);
+    if (compileOptions == ScriptCompiler::kProduceCodeCache)
+    {
+      const ScriptCompiler::CachedData *cachedData = source.GetCachedData();
+      Local<Object> buffer = node::Buffer::New(env, cachedData->length).ToLocalChecked();
+      memcpy(node::Buffer::Data(buffer), cachedData->data, cachedData->length);
+      Local<String> key = FIXED_ONE_BYTE_STRING(args.GetIsolate(), "codeCache");
+      if (args[1]->IsObject())
+        args[1]->ToObject()->Set(key, buffer);
+    }
   }
 
 
@@ -671,6 +694,48 @@ class ContextifyScript : public BaseObject {
     if (value->IsUndefined())
       return defaultFilename;
     return value->ToString(args.GetIsolate());
+  }
+
+
+  static Local<Value> GetCodeCacheArg(const FunctionCallbackInfo<Value>& args,
+      const int i) {
+
+      if (args[i]->IsUndefined()) {
+        return Undefined(args.GetIsolate());
+      }
+      if (!args[i]->IsObject()) {
+        Environment::ThrowTypeError(args.GetIsolate(),
+          "options must be an object");
+          return Undefined(args.GetIsolate());
+      }
+
+      Local<String> key = FIXED_ONE_BYTE_STRING(args.GetIsolate(), "codeCache");
+      Local<Value> value = args[i].As<Object>()->Get(key);
+
+      if (node::Buffer::HasInstance(value))
+        return value->ToObject();
+      return Undefined(args.GetIsolate());
+  }
+
+
+  static Local<Boolean> GetProduceCodeCacheArg(const FunctionCallbackInfo<Value>& args,
+      const int i) {
+
+      if (args[i]->IsUndefined()) {
+        return Boolean::New(args.GetIsolate(), false);
+      }
+      if (!args[i]->IsObject()) {
+        Environment::ThrowTypeError(args.GetIsolate(),
+          "options must be an object");
+        return Boolean::New(args.GetIsolate(), false);
+      }
+
+      Local<String> key = FIXED_ONE_BYTE_STRING(args.GetIsolate(), "produceCodeCache");
+      Local<Value> value = args[i].As<Object>()->Get(key);
+
+      if (!value->IsBoolean())
+        return Boolean::New(args.GetIsolate(), false);
+      return value->ToBoolean(args.GetIsolate());
   }
 
 
