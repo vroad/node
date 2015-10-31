@@ -1050,6 +1050,7 @@ int uv_os_homedir(char* buffer, size_t* size) {
   uid = getuid();
   buf = NULL;
 
+  #if 0
   for (;;) {
     uv__free(buf);
     buf = uv__malloc(bufsize);
@@ -1086,6 +1087,11 @@ int uv_os_homedir(char* buffer, size_t* size) {
   memcpy(buffer, pw.pw_dir, len + 1);
   *size = len;
   uv__free(buf);
+  #else
+  result = getpwuid(uid);
+  buffer = result->pw_dir;
+  *size = strlen(buffer);
+  #endif
 
   return 0;
 }
