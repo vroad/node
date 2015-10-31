@@ -204,6 +204,11 @@
             'src/node_main.cc',
           ],
         }],
+        [ 'node_target_type=="shared_library"', {
+          'sources': [
+            'src/node_android_jni.cc',
+          ],
+        }],
         [ 'node_release_urlbase!=""', {
           'defines': [
             'NODE_RELEASE_URLBASE="<(node_release_urlbase)"',
